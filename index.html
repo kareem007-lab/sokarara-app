@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sokarara App</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Cairo & Cinzel for the title -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;700&family=Cinzel:wght@700&display=swap" rel="stylesheet">
+
+    <!-- pdf.js library from Mozilla -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+
+    <style>
+        body { 
+            font-family: 'Cairo', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .cinematic-title {
+            font-family: 'Cinzel', serif;
+            letter-spacing: 0.2em;
+            text-shadow: 1px 1px 4px rgba(0,0,0,0.2);
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .file-library-list::-webkit-scrollbar { width: 6px; }
+        .file-library-list::-webkit-scrollbar-track { background: #f1f1f1; }
+        .file-library-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 6px; }
+        .file-library-list::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        .table-container table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .table-container th, .table-container td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: right;
+        }
+        .table-container th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .suggested-question {
+            transition: all 0.2s ease-in-out;
+        }
+        .suggested-question:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-color: #3b82f6;
+        }
+        .output-controls {
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .output-container:hover .output-controls {
+            opacity: 1;
+        }
+        .nav-link.active {
+            color: #2563eb;
+        }
+        .top-nav-link.active {
+             border-bottom: 2px solid #2563eb;
+        }
+        .category-header {
+            cursor: pointer;
+        }
+        #viewer-content canvas { max-width: 100%; height: auto; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        #viewer-content img { max-width: 100%; max-height: 80vh; margin: auto; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="app-container" class="flex flex-col min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-md z-20 sticky top-0">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <div class="flex items-baseline gap-2">
+                        <h1 class="cinematic-title text-xl sm:text-2xl font-bold text-gray-800">S o K a R a R a</h1>
+                        <span class="text-sm font-bold text-blue-600">App</span>
+                    </div>
+                    <nav class="hidden sm:flex items-center space-x-4 sm:space-x-8 text-sm sm:text-base font-medium">
+                        <a href="#workspace" class="nav-link top-nav-link px-2 py-1 transition-colors hover:text-blue-600">البحث الشامل</a>
+                        <a href="#library" class="nav-link top-nav-link px-2 py-1 transition-colors hover:text-blue-600">المكتبة</a>
+                        <a href="#about" class="nav-link top-nav-link px-2 py-1 transition-colors hover:text-blue-600">عن التطبيق</a>
+                    </nav>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content: Pages Container -->
+        <div id="pages-container" class="flex-1 container mx-auto p-4 sm:p-6 pb-24 sm:pb-6">
+
+            <!-- Page 1: Workspace (Global Search) -->
+            <main id="page-workspace" class="page-content space-y-6">
+                 <section id="answer-container" class="bg-white p-5 rounded-xl shadow-lg output-container">
+                    <div class="flex justify-between items-center mb-3">
+                        <label for="question-input" class="block text-xl font-bold text-gray-800">البحث في فئة</label>
+                        <div id="answer-controls" class="output-controls space-x-1">
+                            <button id="copy-answer-button" title="نسخ الإجابة" class="p-2 text-gray-500 hover:bg-gray-100 rounded-full"><svg class="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>
+                            <button id="clear-answer-button" title="إغلاق" class="p-2 text-gray-500 hover:bg-gray-100 rounded-full"><svg class="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                        </div>
+                    </div>
+                    <select id="category-search-select" class="w-full p-3 mb-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></select>
+                    <textarea id="question-input" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition" placeholder="اختر فئة ثم اطرح سؤالك..."></textarea>
+                    <button id="ask-button" class="mt-3 w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center justify-center gap-2">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <span>ابحث في الفئة المحددة</span>
+                    </button>
+                    <div id="answer-section" class="mt-4 hidden">
+                        <div id="answer-loader" class="flex justify-center items-center my-4 hidden"><div class="loader"></div></div>
+                        <div id="answer-output" class="w-full min-h-[100px] p-4 bg-gray-50 border border-gray-200 rounded-lg whitespace-pre-wrap" dir="auto"></div>
+                    </div>
+                </section>
+            </main>
+
+            <!-- Page 2: Library -->
+            <main id="page-library" class="page-content hidden">
+                 <div class="bg-white p-5 rounded-xl shadow-lg flex flex-col">
+                     <div class="flex flex-col sm:flex-row gap-4 mb-4">
+                        <div class="flex-1">
+                            <label for="new-category-name" class="block text-sm font-medium text-gray-700">اسم الفئة الجديدة</label>
+                            <input type="text" id="new-category-name" class="mt-1 w-full p-2 border border-gray-300 rounded-lg" placeholder="مثال: تقارير العمل">
+                        </div>
+                        <button id="add-category-button" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 self-end">إنشاء فئة</button>
+                    </div>
+                     <hr class="my-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold">ملفات المكتبة</h2>
+                        <button id="clear-library-button" title="مسح المكتبة بالكامل" class="p-2 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded-full transition-colors">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                    
+                    <label for="pdf-upload" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer mb-4">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        <span>أضف ملفات</span>
+                    </label>
+                    <input id="pdf-upload" type="file" class="hidden" accept="application/pdf,image/*" multiple />
+                    <div id="file-processing-info" class="mt-1 mb-3 text-center text-sm text-gray-600 h-5"></div>
+                    
+                    <div id="categories-container" class="flex-1 overflow-y-auto space-y-4"></div>
+                     <div id="multi-file-actions" class="mt-4 hidden">
+                        <button id="compare-button" class="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2">
+                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            <span>قارن الملفات المحددة</span>
+                        </button>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Page 3: File Analysis -->
+            <main id="page-file-analysis" class="page-content hidden">
+                 <section id="single-file-tools-wrapper" class="bg-white p-5 rounded-xl shadow-lg">
+                     <h2 class="text-xl font-bold mb-3 text-gray-800">أدوات المستند: <span id="selected-file-name" class="text-blue-600"></span></h2>
+                     <div id="ai-tools-section" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <button id="summarize-button" class="tool-button bg-teal-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-600">تلخيص</button>
+                        <button id="suggest-questions-button" class="tool-button bg-indigo-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-600">اقتراح أسئلة</button>
+                        <button id="extract-data-button" class="tool-button bg-orange-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-orange-600 col-span-1 sm:col-span-2 lg:col-span-1">✨ استخراج بيانات</button>
+                    </div>
+                     <div id="ai-tools-output-container" class="mt-4 hidden output-container">
+                         <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-md font-bold text-gray-700">النتيجة</h3>
+                             <div id="tools-output-controls" class="output-controls space-x-1">
+                                <button id="copy-tools-output-button" title="نسخ النتيجة" class="p-2 text-gray-500 hover:bg-gray-100 rounded-full"><svg class="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>
+                                <button id="clear-tools-output-button" title="إغلاق" class="p-2 text-gray-500 hover:bg-gray-100 rounded-full"><svg class="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                            </div>
+                         </div>
+                         <div id="ai-tools-loader" class="flex justify-center items-center my-4 hidden"><div class="loader"></div></div>
+                        <div id="ai-tools-output" class="w-full min-h-[100px] p-4 bg-gray-50 border border-gray-200 rounded-lg whitespace-pre-wrap table-container" dir="auto"></div>
+                    </div>
+                </section>
+            </main>
+            
+            <!-- Page 4: About -->
+            <main id="page-about" class="page-content container mx-auto p-4 sm:p-6 hidden">
+                 <div class="bg-white p-8 rounded-xl shadow-lg">
+                    <h2 class="text-3xl font-bold mb-4 text-center">عن تطبيق Sokarara</h2>
+                    <p class="text-lg text-gray-600 mb-6 text-center max-w-3xl mx-auto">Sokarara هو مساعدك الذكي للتعامل مع مستندات PDF. تم تصميمه ليكون أداة قوية وسهلة الاستخدام تتيح لك إدارة ملفاتك واستخراج المعلومات منها بكفاءة عالية.</p>
+                    <hr class="my-8 border-gray-200">
+                    <div class="text-center">
+                        <h3 class="cinematic-title text-3xl font-bold mb-6 text-gray-800 tracking-widest">إهداء من القلب</h3>
+                        <p class="text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed">
+                            إلى أفضل وأصدق إنسان في حياتي، يا سبب كل شيء جميل.
+                            <br>
+                            هذا العمل المتواضع هو تعبير بسيط عن امتناني لوجودك الذي يمثل لي أكبر دعم وسند.
+                            <br>
+                            أتمنى من كل قلبي أن تكون دائماً بخير وسعادة. هذا العمل إهداء لك.
+                        </p>
+                    </div>
+                    <hr class="my-8 border-gray-200">
+                    <div class="flex flex-col items-center justify-center space-y-2">
+                         <p class="text-sm text-gray-500">Code by: Kareem Waheeb</p>
+                         <a href="https://wa.me/201159296333" target="_blank" class="flex items-center gap-2 text-gray-600 hover:text-green-500 transition-colors">
+                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true"><path d="M12.04 2.01A10.03 10.03 0 0 0 2 12.05a10.03 10.03 0 0 0 10.04 10.04 10.03 10.03 0 0 0 10.04-10.04c0-5.54-4.5-10.04-10.04-10.04M12.04 20.1a8.04 8.04 0 0 1-8.03-8.04c0-4.44 3.6-8.04 8.03-8.04a8.04 8.04 0 0 1 8.03 8.04c.02 4.43-3.58 8.04-8.03 8.04m4.4-5.97c-.24-.12-1.42-.7-1.64-.78-.22-.08-.38-.12-.54.12s-.62.78-.76.94c-.14.16-.28.18-.52.06-.24-.12-1.02-.38-1.94-1.2s-1.36-1.52-1.52-1.78c-.16-.26-.02-.4.1-.52.1-.12.24-.28.35-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42s-.54-1.3-.74-1.78c-.2-.48-.4-.42-.54-.42h-.48c-.16 0-.42.06-.64.3s-.86.84-1.06 2.04c-.2 1.2.88 2.38 1 2.54s1.72 2.62 4.18 3.7c.58.26 1.04.42 1.4.54.56.18 1.06.16 1.46.1.44-.08 1.42-.58 1.62-1.14.2-.54.2-1.02.14-1.14s-.22-.18-.46-.3z"></path></svg>
+                             <span dir="ltr">+20 115 929 6333</span>
+                         </a>
+                    </div>
+                </div>
+            </main>
+        </div>
+        
+         <!-- Bottom Navigation for Mobile -->
+        <nav class="sm:hidden fixed bottom-0 left-0 right-0 bg-white shadow-t flex justify-around z-20 border-t">
+            <a href="#workspace" class="nav-link flex flex-col items-center text-center p-2 transition-colors w-full">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <span class="text-xs">البحث</span>
+            </a>
+            <a href="#library" class="nav-link flex flex-col items-center text-center p-2 transition-colors w-full">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                <span class="text-xs">المكتبة</span>
+            </a>
+            <a href="#about" class="nav-link flex flex-col items-center text-center p-2 transition-colors w-full">
+                 <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span class="text-xs">عن التطبيق</span>
+            </a>
+        </nav>
+    </div>
+    
+    <!-- Custom Modals -->
+    <div id="custom-modal-container" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-50"></div>
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+            <h3 id="modal-title" class="text-xl font-bold mb-4"></h3>
+            <p id="modal-text" class="mb-4"></p>
+            <input id="modal-input" type="text" class="w-full p-2 border border-gray-300 rounded-lg hidden">
+            <div class="mt-6 flex justify-end gap-3">
+                <button id="modal-cancel-button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">إلغاء</button>
+                <button id="modal-ok-button" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">موافق</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- File Viewer Modal -->
+    <div id="file-viewer-modal" class="fixed inset-0 bg-black bg-opacity-75 flex flex-col p-4 z-50 hidden">
+        <div class="flex justify-between items-center text-white mb-4">
+            <h3 id="viewer-file-name" class="text-lg font-bold"></h3>
+            <button id="viewer-close-button" class="p-2 rounded-full hover:bg-white/20">&times;</button>
+        </div>
+        <div id="viewer-content" class="flex-1 overflow-auto flex items-center justify-center"></div>
+        <div id="pdf-nav-controls" class="text-white text-center p-2 flex justify-center items-center gap-4 hidden">
+            <button id="pdf-prev-button">&lt; السابق</button>
+            <span id="pdf-page-num"></span>
+            <button id="pdf-next-button">التالي &gt;</button>
+        </div>
+    </div>
+
+
+    <script type="module">
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
+
+        const elements = {
+            pdfUpload: document.getElementById('pdf-upload'),
+            fileProcessingInfo: document.getElementById('file-processing-info'),
+            categoriesContainer: document.getElementById('categories-container'),
+            clearLibraryButton: document.getElementById('clear-library-button'),
+            multiFileActions: document.getElementById('multi-file-actions'),
+            compareButton: document.getElementById('compare-button'),
+            singleFileToolsWrapper: document.getElementById('single-file-tools-wrapper'),
+            selectedFileName: document.getElementById('selected-file-name'),
+            summarizeButton: document.getElementById('summarize-button'),
+            suggestQuestionsButton: document.getElementById('suggest-questions-button'),
+            extractDataButton: document.getElementById('extract-data-button'),
+            aiToolsOutputContainer: document.getElementById('ai-tools-output-container'),
+            aiToolsLoader: document.getElementById('ai-tools-loader'),
+            aiToolsOutput: document.getElementById('ai-tools-output'),
+            questionInput: document.getElementById('question-input'),
+            categorySearchSelect: document.getElementById('category-search-select'),
+            askButton: document.getElementById('ask-button'),
+            answerSection: document.getElementById('answer-section'),
+            answerLoader: document.getElementById('answer-loader'),
+            answerOutput: document.getElementById('answer-output'),
+            copyAnswerButton: document.getElementById('copy-answer-button'),
+            clearAnswerButton: document.getElementById('clear-answer-button'),
+            copyToolsOutputButton: document.getElementById('copy-tools-output-button'),
+            clearToolsOutputButton: document.getElementById('clear-tools-output-button'),
+            modalContainer: document.getElementById('custom-modal-container'),
+            modalTitle: document.getElementById('modal-title'),
+            modalText: document.getElementById('modal-text'),
+            modalInput: document.getElementById('modal-input'),
+            modalOk: document.getElementById('modal-ok-button'),
+            modalCancel: document.getElementById('modal-cancel-button'),
+            addCategoryButton: document.getElementById('add-category-button'),
+            newCategoryName: document.getElementById('new-category-name'),
+            viewerModal: document.getElementById('file-viewer-modal'),
+            viewerFileName: document.getElementById('viewer-file-name'),
+            viewerContent: document.getElementById('viewer-content'),
+            viewerCloseButton: document.getElementById('viewer-close-button'),
+            pdfNavControls: document.getElementById('pdf-nav-controls'),
+            pdfPrevButton: document.getElementById('pdf-prev-button'),
+            pdfNextButton: document.getElementById('pdf-next-button'),
+            pdfPageNum: document.getElementById('pdf-page-num'),
+        };
+
+        let activeSingleFileName = null;
+        let selectedForCompare = new Set();
+        let pdfDoc = null;
+        let pageNum = 1;
+        
+        const DB_NAME = 'PDFLibraryDB_V8';
+        const DB_VERSION = 1;
+        let db;
+        
+        async function initDB() { 
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onerror = () => reject("Error opening DB");
+                request.onsuccess = (event) => { db = event.target.result; resolve(db); };
+                request.onupgradeneeded = (event) => { 
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('categories')) {
+                        db.createObjectStore('categories', { keyPath: 'id', autoIncrement: true });
+                    }
+                    if (!db.objectStoreNames.contains('files')) {
+                         const fileStore = db.createObjectStore('files', { keyPath: 'name' });
+                        fileStore.createIndex('categoryId', 'categoryId', { unique: false });
+                    }
+                };
+            });
+        }
+        const dbActions = {
+            addCategory: (name) => new Promise((res, rej) => { const tx = db.transaction(['categories'], 'readwrite'); tx.objectStore('categories').add({ name }); tx.oncomplete = () => res(); tx.onerror = e => rej(e.target.error); }),
+            getCategories: () => new Promise((res, rej) => { const req = db.transaction(['categories']).objectStore('categories').getAll(); req.onsuccess = () => res(req.result); req.onerror = e => rej(e.target.error); }),
+            saveFile: (fileData) => new Promise((res, rej) => { const tx = db.transaction(['files'], 'readwrite'); tx.objectStore('files').put(fileData); tx.oncomplete = () => res(); tx.onerror = e => rej(e.target.error); }),
+            getFilesByCategoryId: (categoryId) => new Promise((res, rej) => { const index = db.transaction(['files']).objectStore('files').index('categoryId'); const req = index.getAll(categoryId); req.onsuccess = () => res(req.result); req.onerror = e => rej(e.target.error); }),
+            getFile: (name) => new Promise((res, rej) => { const req = db.transaction(['files']).objectStore('files').get(name); req.onsuccess = () => res(req.result); req.onerror = e => rej(e.target.error); }),
+            getAllFiles: () => new Promise((res, rej) => { const req = db.transaction(['files']).objectStore('files').getAll(); req.onsuccess = () => res(req.result); req.onerror = e => rej(e.target.error); }),
+            deleteFile: (name) => new Promise((res, rej) => { const tx = db.transaction(['files'], 'readwrite'); tx.objectStore('files').delete(name); tx.oncomplete = () => res(); tx.onerror = e => rej(e.target.error); }),
+            clearAll: () => new Promise(async (res, rej) => {
+                const tx1 = db.transaction(['files'], 'readwrite'); tx1.objectStore('files').clear();
+                tx1.oncomplete = async () => {
+                     const tx2 = db.transaction(['categories'], 'readwrite');
+                     tx2.objectStore('categories').clear();
+                     tx2.oncomplete = () => res();
+                     tx2.onerror = e => rej(e.target.error);
+                }
+                tx1.onerror = e => rej(e.target.error);
+            }),
+        };
+        
+        function showModal({ title, text, input = false, selectOptions = null }) {
+            return new Promise((resolve) => {
+                elements.modalTitle.textContent = title;
+                elements.modalText.textContent = text;
+                elements.modalInput.classList.toggle('hidden', !input);
+                const oldSelect = document.getElementById('modal-select');
+                if(oldSelect) oldSelect.remove();
+                if (selectOptions) {
+                    const select = document.createElement('select');
+                    select.id = 'modal-select';
+                    select.className = 'w-full p-2 mt-2 border border-gray-300 rounded-lg';
+                    selectOptions.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt.id;
+                        option.textContent = opt.name;
+                        select.appendChild(option);
+                    });
+                    elements.modalText.insertAdjacentElement('afterend', select);
+                }
+                if (input) elements.modalInput.value = '';
+                elements.modalContainer.classList.remove('hidden');
+                const close = (value) => {
+                    elements.modalContainer.classList.add('hidden');
+                    elements.modalOk.onclick = null;
+                    elements.modalCancel.onclick = null;
+                    resolve(value);
+                };
+                elements.modalOk.onclick = () => close(selectOptions ? document.getElementById('modal-select').value : (input ? elements.modalInput.value : true));
+                elements.modalCancel.onclick = () => close(null);
+            });
+        }
+        
+        function copyToClipboard(element, button) { const textToCopy = element.innerText; const originalButtonHTML = button.innerHTML; const textArea = document.createElement("textarea"); textArea.value = textToCopy; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { if (document.execCommand('copy')) { button.innerHTML = '✅ تم النسخ'; setTimeout(() => { button.innerHTML = originalButtonHTML; }, 2000); } } catch (err) { console.error('Fallback copy failed', err); } document.body.removeChild(textArea); }
+
+        function setAllButtonsDisabled(disabled) {
+            [elements.askButton, elements.summarizeButton, elements.suggestQuestionsButton, elements.extractDataButton, elements.compareButton].forEach(b => {
+                if (b) b.disabled = disabled;
+            });
+        }
+        
+        async function refreshUI() {
+            await refreshLibraryUI();
+            await refreshWorkspaceUI();
+        }
+
+        async function refreshLibraryUI() {
+            const categories = await dbActions.getCategories();
+            const container = document.getElementById('categories-container');
+            if(!container) return;
+            container.innerHTML = categories.length > 0 ? '' : `<p class="text-center text-gray-500 mt-4">مكتبتك فارغة. قم بإنشاء فئة أولاً.</p>`;
+            
+            for(const category of categories) {
+                const files = await dbActions.getFilesByCategoryId(category.id);
+                const categoryEl = document.createElement('div');
+                categoryEl.className = 'py-2';
+                categoryEl.innerHTML = `
+                    <div class="category-header flex justify-between items-center p-2 bg-gray-100 rounded-lg">
+                        <h3 class="font-bold">${category.name} (${files.length})</h3>
+                        <svg class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                    <div class="file-list pl-4 pt-2 space-y-2 hidden"></div>
+                `;
+                const fileListEl = categoryEl.querySelector('.file-list');
+                const header = categoryEl.querySelector('.category-header');
+                header.addEventListener('click', () => {
+                    fileListEl.classList.toggle('hidden');
+                    header.querySelector('svg').classList.toggle('rotate-180');
+                });
+                files.forEach(file => {
+                    const card = document.createElement('div');
+                    card.className = `p-3 border-r-4 border-transparent rounded-lg hover:bg-gray-100 flex items-center gap-3`;
+                    card.dataset.fileName = file.name;
+                    card.innerHTML = `
+                        <input type="checkbox" class="compare-checkbox form-checkbox h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 shrink-0" data-name="${file.name}">
+                        <div class="flex-1 flex items-center gap-3 min-w-0 cursor-pointer" data-action="view">
+                            <svg class="w-6 h-6 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path></svg>
+                            <span class="truncate font-medium">${file.name}</span>
+                        </div>
+                        <button class="analyze-file-button p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-full shrink-0" title="تحليل الملف">
+                            <svg class="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                        </button>
+                        <button class="delete-file-button p-2 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded-full shrink-0" title="حذف الملف">
+                            <svg class="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    `;
+                    card.querySelector('[data-action="view"]').addEventListener('click', () => handleFileView(file.name));
+                    card.querySelector('.analyze-file-button').addEventListener('click', () => handleFileSelection(file.name));
+                    card.querySelector('.compare-checkbox').addEventListener('change', (e) => handleCompareSelection(file.name, e.target.checked));
+                    card.querySelector('.delete-file-button').addEventListener('click', () => handleFileDelete(file.name));
+                    fileListEl.appendChild(card);
+                });
+                container.appendChild(categoryEl);
+            }
+        }
+        
+        async function refreshWorkspaceUI() {
+            const categories = await dbActions.getCategories();
+            const allFiles = await dbActions.getAllFiles();
+            const select = elements.categorySearchSelect;
+            if(!select) return;
+            select.innerHTML = '<option value="all" selected>كل الملفات</option>';
+             categories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.id;
+                option.textContent = cat.name;
+                select.appendChild(option);
+            });
+            elements.askButton.disabled = allFiles.length === 0;
+        }
+        
+        function handleCompareSelection(fileName, isChecked) {
+            if(isChecked) selectedForCompare.add(fileName);
+            else selectedForCompare.delete(fileName);
+            elements.multiFileActions.classList.toggle('hidden', selectedForCompare.size < 2);
+        }
+        
+        function handleFileSelection(fileName) {
+            activeSingleFileName = fileName;
+            window.location.hash = `#file-analysis`;
+        }
+
+        async function handleFileDelete(fileName) {
+            const confirmed = await showModal({ title: 'تأكيد الحذف', text: `هل أنت متأكد أنك تريد حذف الملف: ${fileName}؟` });
+            if (confirmed) {
+                await dbActions.deleteFile(fileName);
+                selectedForCompare.delete(fileName);
+                await refreshUI();
+                if(activeSingleFileName === fileName){
+                    window.location.hash = '#library';
+                }
+            }
+        }
+
+        async function handleFileView(fileName) {
+            const fileObject = await dbActions.getFile(fileName);
+            if (!fileObject) return;
+
+            elements.viewerFileName.textContent = fileName;
+            elements.viewerContent.innerHTML = ''; 
+            elements.viewerModal.classList.remove('hidden');
+
+            if (fileObject.originalMime.startsWith('image')) {
+                elements.pdfNavControls.classList.add('hidden');
+                const img = document.createElement('img');
+                img.src = `data:${fileObject.originalMime};base64,${fileObject.originalContent}`;
+                elements.viewerContent.appendChild(img);
+            } else if (fileObject.originalMime === 'application/pdf') {
+                elements.pdfNavControls.classList.remove('hidden');
+                const pdfData = atob(fileObject.originalContent);
+                const uint8Array = new Uint8Array(pdfData.length);
+                for (let i = 0; i < pdfData.length; i++) {
+                    uint8Array[i] = pdfData.charCodeAt(i);
+                }
+                const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+                pdfDoc = await loadingTask.promise;
+                pageNum = 1;
+                renderPdfPage(pageNum);
+            }
+        }
+
+        function renderPdfPage(num) {
+            if (!pdfDoc) return;
+            pdfDoc.getPage(num).then(page => {
+                const viewport = page.getViewport({ scale: 1.5 });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                page.render({ canvasContext: context, viewport: viewport }).promise.then(() => {
+                    elements.viewerContent.innerHTML = '';
+                    elements.viewerContent.appendChild(canvas);
+                    elements.viewerContent.scrollTop = 0;
+                });
+
+                elements.pdfPageNum.textContent = `صفحة ${num} من ${pdfDoc.numPages}`;
+                elements.pdfPrevButton.disabled = num <= 1;
+                elements.pdfNextButton.disabled = num >= pdfDoc.numPages;
+            });
+        }
+        
+        async function extractCorrectedTextFromPage(page) {
+            const textContent = await page.getTextContent();
+            const lines = new Map();
+            for (const item of textContent.items) {
+                const y = Math.round(item.transform[5]);
+                if (!lines.has(y)) lines.set(y, []);
+                lines.get(y).push(item);
+            }
+            const sortedLines = Array.from(lines.entries()).sort((a, b) => b[0] - a[0]);
+            return sortedLines.map(([y, items]) => 
+                items.sort((a, b) => a.transform[4] - b.transform[4]).map(item => item.str).join(' ')
+            ).join('\n');
+        }
+
+        async function processFile(file, categoryId) {
+            const originalContent = await new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result.split(',')[1]);
+                reader.readAsDataURL(file);
+            });
+
+            if (file.type.startsWith('image/')) {
+                 await dbActions.saveFile({ name: file.name, categoryId, extractedContent: [originalContent], type: 'image', originalContent: originalContent, originalMime: file.type });
+            } else if (file.type === 'application/pdf') {
+                 const buffer = atob(originalContent).split('').map(c => c.charCodeAt(0));
+                 const pdf = await pdfjsLib.getDocument({data: new Uint8Array(buffer)}).promise;
+                 let textContent = '';
+                 for (let i = 1; i <= pdf.numPages; i++) {
+                     const page = await pdf.getPage(i);
+                     textContent += await extractCorrectedTextFromPage(page) + '\n\n';
+                 }
+                 
+                 if (textContent.replace(/\s/g, '').length < 150) {
+                      const imageContents = [];
+                      for (let i = 1; i <= pdf.numPages; i++) {
+                         const page = await pdf.getPage(i);
+                         const viewport = page.getViewport({ scale: 1.5 });
+                         const canvas = document.createElement('canvas');
+                         canvas.height = viewport.height;
+                         canvas.width = viewport.width;
+                         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                         imageContents.push(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+                     }
+                     await dbActions.saveFile({name: file.name, categoryId, extractedContent: imageContents, type: 'pdf-image', originalContent, originalMime: file.type});
+                 } else {
+                      await dbActions.saveFile({name: file.name, categoryId, extractedContent: textContent, type: 'pdf-text', originalContent, originalMime: file.type});
+                 }
+            }
+        }
+        
+        async function processAIRequest({prompt, loader, container, output, outputType = 'text', fileObject = null, images = []}) {
+             setAllButtonsDisabled(true); container.classList.remove('hidden'); loader.classList.remove('hidden'); output.innerHTML = '';
+             let finalPrompt = prompt;
+             let finalImages = images;
+
+             if (fileObject) {
+                 if(fileObject.type.includes('text')) {
+                     finalPrompt += '\n\n--- النص ---\n' + fileObject.extractedContent;
+                 } else if (fileObject.type.includes('image')) {
+                     finalImages = fileObject.extractedContent;
+                 }
+             }
+             const masterInstruction = `أجب دائماً باللغة العربية الفصحى وبشكل منظم واحترافي. دقق إجابتك جيداً لتكون خالية من أي أخطاء إملائية أو نحوية. إذا كان النص الأصلي يحتوي على كلمات عربية بحروف متقطعة، أعد تجميعها بشكل صحيح قبل الإجابة.`;
+
+             const result = await callGeminiAPI(`${masterInstruction}\n\n${finalPrompt}`, finalImages);
+             
+             if (outputType === 'table') { output.innerHTML = parseMarkdownTable(result); }
+             else if (outputType === 'buttons') { result.split('\n').filter(q => q.trim().length > 0).forEach(qText => { const btn = document.createElement('button'); btn.textContent = qText.replace(/^\d+\.\s*/, '').trim(); btn.className = "w-full text-right p-3 mb-2 bg-white border border-gray-300 rounded-lg cursor-pointer suggested-question"; btn.onclick = () => { elements.questionInput.value = btn.textContent; window.location.hash = '#workspace'; setTimeout(()=> elements.questionInput.focus(),100)}; output.appendChild(btn); });} 
+             else { output.innerHTML = result.replace(/\n/g, '<br>'); }
+             loader.classList.add('hidden'); setAllButtonsDisabled(false);
+        }
+        function parseMarkdownTable(md){ const lines = md.split('\n').filter(line => line.trim().length > 0); if (lines.length < 2) return `<p>${md}</p>`; const table = document.createElement('table'); const thead = document.createElement('thead'); const tbody = document.createElement('tbody'); const headerRow = document.createElement('tr'); lines[0].split('|').map(s => s.trim()).filter(Boolean).forEach(headerText => { const th = document.createElement('th'); th.textContent = headerText; headerRow.appendChild(th); }); thead.appendChild(headerRow); lines.slice(2).forEach(line => { const bodyRow = document.createElement('tr'); line.split('|').map(s => s.trim()).filter(Boolean).forEach(cellText => { const td = document.createElement('td'); td.textContent = cellText; bodyRow.appendChild(td); }); tbody.appendChild(bodyRow); }); table.appendChild(thead); table.appendChild(tbody); return table.outerHTML; }
+        async function callGeminiAPI(prompt, images = []) {
+            const apiKey = "AIzaSyAWPuMiQp8ltD3_1v4scm6U-T522GgKWbo"; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            try {
+                const parts = [{ text: prompt }];
+                if (images && images.length > 0) {
+                    images.forEach(imgData => {
+                        parts.push({ inlineData: { mimeType: 'image/jpeg', data: imgData } });
+                    });
+                }
+                const payload = { contents: [{ parts }] };
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API Error: ${response.status} - ${errorText}`);
+                }
+                const result = await response.json();
+                return result.candidates?.[0]?.content?.parts?.[0]?.text.trim() || 'No response from AI.';
+            } catch (error) {
+                console.error('Gemini API Error:', error);
+                return `Error: ${error.message}`;
+            }
+        }
+
+        function setupEventListeners() {
+            elements.addCategoryButton.addEventListener('click', async () => {
+                const name = elements.newCategoryName.value.trim();
+                if(name){
+                    await dbActions.addCategory(name);
+                    elements.newCategoryName.value = '';
+                    await refreshUI();
+                }
+            });
+            
+            elements.pdfUpload.addEventListener('change', async (e) => {
+                 const files = e.target.files; if (!files.length) return;
+                 const categories = await dbActions.getCategories();
+                 if (categories.length === 0) {
+                     alert("الرجاء إنشاء فئة أولاً قبل رفع الملفات.");
+                     return;
+                 }
+                 const categoryId = await showModal({ title: 'اختر فئة', text: `إلى أي فئة تود إضافة هذه الملفات؟`, selectOptions: categories });
+                 if (!categoryId) return;
+
+                 elements.fileProcessingInfo.textContent = `جاري معالجة ${files.length} ملف...`;
+                 setAllButtonsDisabled(true);
+                 for (const file of files) {
+                    try {
+                       await processFile(file, parseInt(categoryId));
+                    } catch (err) { console.error(`Error processing ${file.name}`, err); }
+                 }
+                 elements.fileProcessingInfo.textContent = 'تمت الإضافة بنجاح.';
+                 await refreshUI();
+                 e.target.value = '';
+                 setAllButtonsDisabled(false);
+                 setTimeout(() => elements.fileProcessingInfo.textContent = '', 2000);
+            });
+
+            elements.clearLibraryButton.addEventListener('click', async () => {
+                const confirmed = await showModal({ title: 'مسح المكتبة', text: 'هل أنت متأكد من حذف جميع الملفات والفئات؟' });
+                if (confirmed) {
+                    await dbActions.clearAll();
+                    selectedForCompare.clear();
+                    await refreshUI();
+                     window.location.hash = '#library';
+                }
+            });
+            
+            elements.copyAnswerButton.addEventListener('click', (e) => copyToClipboard(elements.answerOutput, e.currentTarget));
+            elements.clearAnswerButton.addEventListener('click', () => { elements.answerSection.classList.add('hidden'); elements.answerOutput.innerHTML = ''; });
+            elements.copyToolsOutputButton.addEventListener('click', (e) => copyToClipboard(elements.aiToolsOutput, e.currentTarget));
+            elements.clearToolsOutputButton.addEventListener('click', () => { elements.aiToolsOutputContainer.classList.add('hidden'); elements.aiToolsOutput.innerHTML = ''; });
+            elements.viewerCloseButton.addEventListener('click', () => elements.viewerModal.classList.add('hidden'));
+            elements.pdfPrevButton.addEventListener('click', () => { if(pageNum <= 1) return; pageNum--; renderPdfPage(pageNum); });
+            elements.pdfNextButton.addEventListener('click', () => { if(pageNum >= pdfDoc.numPages) return; pageNum++; renderPdfPage(pageNum); });
+
+            elements.askButton.addEventListener('click', () => setupAndRunAIRequest('ask'));
+            elements.compareButton.addEventListener('click', async () => {
+                const filesToCompare = Array.from(selectedForCompare);
+                if (filesToCompare.length < 2) return;
+                const comparisonQuery = await showModal({ title: 'مقارنة المستندات', text: 'ما الذي تود مقارنته في الملفات المحددة؟', input: true });
+                if (!comparisonQuery) return;
+                let textContexts = [];
+                let imageContents = [];
+                for(const name of filesToCompare) {
+                    const fileObject = await dbActions.getFile(name);
+                    if (fileObject.type.includes('text')) { textContexts.push(`--- المستند: ${fileObject.name} ---\n${fileObject.extractedContent}`); }
+                    else if (fileObject.type.includes('image')) { textContexts.push(`--- المستند: ${fileObject.name} (محتوى مصور) ---`); imageContents.push(...fileObject.extractedContent); }
+                }
+                const context = textContexts.join('\n\n');
+                const prompt = `أنت محلل خبير. قارن بين المستندات التالية بناءً على طلب المستخدم. وضح نقاط التشابه والاختلاف.\n\n${context}--- طلب المستخدم ---\n${comparisonQuery}\n\n--- تحليل المقارنة ---`;
+                await processAIRequest({prompt, loader: elements.answerLoader, container: elements.answerSection, output: elements.answerOutput, outputType: 'text', images: imageContents});
+            });
+
+            elements.summarizeButton.addEventListener('click', () => setupAndRunAIRequest('summarize'));
+            elements.suggestQuestionsButton.addEventListener('click', () => setupAndRunAIRequest('suggest'));
+            elements.extractDataButton.addEventListener('click', () => setupAndRunAIRequest('extract'));
+            
+             document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    window.location.hash = e.currentTarget.hash;
+                });
+            });
+
+            window.addEventListener('hashchange', handleNavigation);
+        }
+
+        // --- Navigation ---
+        function showPage(pageId) {
+            document.querySelectorAll('.page-content').forEach(page => page.classList.add('hidden'));
+            const targetPage = document.getElementById(pageId);
+            if (targetPage) targetPage.classList.remove('hidden');
+            else document.getElementById('page-workspace').classList.remove('hidden');
+            document.querySelectorAll('.nav-link').forEach(link => {
+                const linkTarget = link.hash.substring(1);
+                const currentTarget = pageId.replace('page-', '');
+                link.classList.toggle('active', linkTarget === currentTarget);
+            });
+        }
+
+        function handleNavigation() {
+            const pageName = window.location.hash.substring(1) || 'workspace';
+            showPage(`page-${pageName}`);
+            if (pageName === 'file-analysis') {
+                if (!activeSingleFileName) window.location.hash = '#library';
+                else { elements.singleFileToolsWrapper.classList.remove('hidden'); elements.selectedFileName.textContent = activeSingleFileName; }
+            } else if (pageName === 'library') refreshUI();
+            else if (pageName === 'workspace') refreshWorkspaceUI();
+        }
+        
+        // --- Initial Load ---
+        (async () => {
+            try { 
+                await initDB(); 
+                setupEventListeners();
+                handleNavigation(); 
+            }
+            catch (error) { console.error("Init failed:", error); alert("فشل تهيئة التطبيق."); }
+        })();
+    </script>
+</body>
+</html>
