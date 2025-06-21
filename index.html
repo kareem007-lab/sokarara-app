@@ -633,7 +633,7 @@
                 return `Error: ${error.message}`;
             }
         }
-
+        
         function setupEventListeners() {
             elements.addCategoryButton.addEventListener('click', async () => {
                 const name = elements.newCategoryName.value.trim();
@@ -685,6 +685,43 @@
             elements.viewerCloseButton.addEventListener('click', () => elements.viewerModal.classList.add('hidden'));
             elements.pdfPrevButton.addEventListener('click', () => { if(pageNum <= 1) return; pageNum--; renderPdfPage(pageNum); });
             elements.pdfNextButton.addEventListener('click', () => { if(pageNum >= pdfDoc.numPages) return; pageNum++; renderPdfPage(pageNum); });
+            
+            async function setupAndRunAIRequest(buttonType) {
+                let prompt, loader, container, output, outputType='text', fileObject=null, images=[];
+                
+                if (buttonType === 'ask') {
+                    const question = elements.questionInput.value.trim(); if (!question) return;
+                    const categoryId = elements.categorySearchSelect.value;
+                    const files = categoryId === 'all' ? await dbActions.getAllFiles() : await dbActions.getFilesByCategoryId(parseInt(categoryId));
+                    if (files.length === 0) { alert('لا توجد ملفات في هذه الفئة للبحث فيها.'); return; }
+                    
+                    let textContexts = [];
+                    files.forEach(file => {
+                        if (file.type.includes('text')) { textContexts.push(`--- المستند: ${file.name} ---\n${file.extractedContent}`); }
+                        else if (file.type.includes('image')) { textContexts.push(`--- المستند: ${file.name} (محتوى مصور) ---`); images.push(...file.extractedContent); }
+                    });
+                    const context = textContexts.join('\n\n');
+                    prompt = `أجب عن السؤال بناءً على محتوى المستندات التالية. عند استخدام أي معلومة، اذكر اسم المستند الذي جاءت منه.\n\n${context}\n\n--- سؤال المستخدم ---\n${question}\n\n--- الإجابة ---`;
+                    loader = elements.answerLoader; container = elements.answerSection; output = elements.answerOutput;
+                } else if (activeSingleFileName) {
+                    fileObject = await dbActions.getFile(activeSingleFileName);
+                    if (!fileObject) return;
+                    loader = elements.aiToolsLoader; container = elements.aiToolsOutputContainer; output = elements.aiToolsOutput;
+                    
+                    if (buttonType === 'summarize') {
+                        prompt = `أنت مساعد خبير. قدم ملخصًا احترافيًا للنص/الصور التالية. ابدأ بعنوان مناسب، ثم اعرض النقاط الرئيسية في قائمة منسدلة واضحة. كن دقيقاً وتجنب الأخطاء الإملائية.`;
+                    } else if (buttonType === 'suggest') {
+                        prompt = `بناءً على المحتوى التالي، اقترح 3 أسئلة تحليلية ومثيرة للاهتمام يمكن طرحها. قدم الأسئلة فقط، كل سؤال في سطر منفصل.`;
+                        outputType = 'buttons';
+                    } else if (buttonType === 'extract') {
+                        const extractionQuery = await showModal({ title: 'استخراج البيانات', text: 'صف البيانات التي تريد استخراجها في جدول.', input: true });
+                        if (!extractionQuery) return;
+                        prompt = `من المحتوى التالي، استخرج البيانات التي طلبها المستخدم وقم بتنسيقها كجدول Markdown فقط، بدون أي نص إضافي.\n\n--- الطلب ---\n${extractionQuery}\n\n--- جدول Markdown ---`;
+                        outputType = 'table';
+                    }
+                }
+                await processAIRequest({prompt, loader, container, output, outputType, fileObject, images});
+            }
 
             elements.askButton.addEventListener('click', () => setupAndRunAIRequest('ask'));
             elements.compareButton.addEventListener('click', async () => {
